@@ -6,10 +6,11 @@ Minimal Docker container for connecting MikroTik routers to OpenConnect (ocserv)
 
 - ✅ ARM64 support (MikroTik hAP ax2, ax3, etc.)
 - ✅ ARM32 support (MikroTik hAP ac2, hEX, etc.)
+- ✅ **Split-tunnel mode** — only VPN networks through tunnel
+- ✅ **Full-tunnel mode** — all traffic through VPN
 - ✅ Automatic reconnection on connection loss
 - ✅ NAT and routing for clients
 - ✅ DNS proxy — clients use VPN DNS servers
-- ✅ Split tunneling (VPN networks through tunnel, rest directly)
 - ✅ **Image size ~27MB** (custom build without libproxy)
 
 ## Environment Variables
@@ -26,12 +27,25 @@ Minimal Docker container for connecting MikroTik routers to OpenConnect (ocserv)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `OC_CLIENT_NETWORKS` | `192.168.16.0/24` | Networks that use this VPN (space-separated) |
 | `OC_SERVERCERT` | - | Server certificate pin (see below) |
 | `OC_PROTOCOL` | anyconnect | Protocol: `anyconnect`, `nc`, `gp`, `pulse`, `fortinet` |
 | `OC_GROUP` | - | VPN group |
 | `OC_MTU` | 1300 | Tunnel MTU |
 | `OC_EXTRA_ARGS` | - | Additional openconnect arguments |
 | `OC_RECONNECT_DELAY` | 5 | Reconnection delay in seconds |
+
+### OC_CLIENT_NETWORKS
+
+**Important for full-tunnel mode!** This variable tells the container which networks connect through it. Without this, responses to clients won't route back correctly when VPN uses full-tunnel (default route through tun0).
+
+```bash
+# Single network
+/container/envs/add list=openconnect key=OC_CLIENT_NETWORKS value="192.168.16.0/24"
+
+# Multiple networks (space-separated)
+/container/envs/add list=openconnect key=OC_CLIENT_NETWORKS value="192.168.16.0/24 192.168.17.0/24"
+```
 
 ### Using OC_SERVERCERT
 
@@ -48,6 +62,31 @@ Add the pin:
 ```
 /container/envs/add list=openconnect key=OC_SERVERCERT value="pin-sha256:V3cztC+H5YuAIM3T+PoUXEjy6LRfIUpgGt2dauOw/ws="
 ```
+
+## Tunnel Modes
+
+The container automatically detects which mode the VPN server uses:
+
+### Split-tunnel Mode
+VPN server pushes routes only for specific networks. Internet traffic goes directly through MikroTik.
+
+```
+ip route:
+default via 172.18.0.1 dev veth-vpn       # Internet → MikroTik
+10.10.0.0/16 dev tun0                      # Corporate → VPN
+10.20.0.0/16 dev tun0                      # Corporate → VPN
+```
+
+### Full-tunnel Mode  
+VPN server pushes default route. All traffic goes through VPN.
+
+```
+ip route:
+default dev tun0                           # Everything → VPN
+192.168.16.0/24 via 172.18.0.1 dev veth-vpn  # Clients → MikroTik (added by container)
+```
+
+The container automatically adds routes for `OC_CLIENT_NETWORKS` to ensure client traffic routes correctly in both modes.
 
 ## Installation
 
@@ -100,10 +139,14 @@ Client (192.168.16.x)
     ├─── DNS queries ──► Container:53 (dnsmasq) ──► VPN DNS
     │
     └─── Traffic ──► MikroTik (mangle) ──► Container (NAT)
-                                              │
-                                              ├─► tun0 (VPN networks)
-                                              │
-                                              └─► veth-vpn (internet)
+                                            │
+                                            ├─► tun0 (VPN networks / all traffic)
+                                            │
+                                            └─► veth-vpn (internet in split-tunnel)
+
+Container routing (full-tunnel mode):
+    default ──► tun0 (VPN)
+    192.168.16.0/24 ──► veth-vpn (clients, added automatically)
 ```
 
 ## Monitoring
@@ -119,13 +162,27 @@ Client (192.168.16.x)
 /container/shell 0
 
 # Inside container:
-ip route              # routes
+ip route              # routes (check for client network routes)
 ip addr               # interfaces  
 iptables -t nat -L -v # NAT rules
 cat /etc/resolv.conf  # VPN DNS
 ```
 
 ## Troubleshooting
+
+### Clients can't access anything in full-tunnel mode
+
+Check that `OC_CLIENT_NETWORKS` is set correctly:
+```bash
+/container/envs print where list=openconnect
+```
+
+Inside container, verify routes:
+```bash
+/container/shell 0
+ip route | grep 192.168.16
+# Should show: 192.168.16.0/24 via 172.18.0.1 dev veth-vpn
+```
 
 ### DNS not working in container
 ```bash
@@ -159,11 +216,10 @@ Ensure DHCP provides DNS = container IP:
 | File | Description |
 |------|-------------|
 | `Dockerfile` | Multi-stage build of openconnect without libproxy |
-| `connect.sh` | Connection script with NAT and DNS proxy |
+| `connect.sh` | Connection script with NAT, DNS proxy, and policy routing |
 | `build.sh` | Build script for arm64/arm/amd64 |
 | `mikrotik-setup.rsc` | Basic container setup |
 | `mikrotik-vpn-network.rsc` | VLAN/WiFi setup for clients |
-| `analyze.sh` | Image size analysis |
 
 ## Size Optimization
 
