@@ -179,7 +179,7 @@ detect_tunnel_mode() {
 cleanup() { 
     log "Stopping..."
     killall dnsmasq 2>/dev/null
-    kill $(cat /run/oc.pid 2>/dev/null) 2>/dev/null
+    kill "$(cat /run/oc.pid 2>/dev/null)" 2>/dev/null
     # Clean up policy routing
     ip rule del table 100 2>/dev/null || true
     ip route flush table 100 2>/dev/null || true
@@ -221,7 +221,7 @@ while true; do
         ip route | while read line; do log "  $line"; done
         log "===================="
         
-        while [ -f /run/oc.pid ] && kill -0 $(cat /run/oc.pid) 2>/dev/null; do
+        while [ -f /run/oc.pid ] && kill -0 "$(cat /run/oc.pid)" 2>/dev/null; do
             sleep 10
         done
         log "Disconnected!"
