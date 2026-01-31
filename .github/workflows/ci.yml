@@ -4,6 +4,18 @@ on:
   push:
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_amd64:
+        description: 'Test AMD64 build'
+        required: false
+        default: true
+        type: boolean
+      test_arm64:
+        description: 'Test ARM64 build'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   lint:
@@ -19,10 +31,11 @@ jobs:
           scandir: '.'
           severity: warning
 
-  build-test:
-    name: Test Build
+  build-test-amd64:
+    name: Test Build AMD64
     runs-on: ubuntu-latest
     needs: lint
+    if: github.event_name != 'workflow_dispatch' || inputs.test_amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,4 +55,39 @@ jobs:
             test -f /connect.sh && \
             test -x /connect.sh && \
             echo 'All checks passed!'
+          "
+
+  build-test-arm64:
+    name: Test Build ARM64
+    runs-on: ubuntu-latest
+    needs: lint
+    if: (github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && inputs.test_arm64)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ARM64 test image
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --tag openconnect-mikrotik:test-arm64 \
+            --load \
+            .
+
+      - name: Test ARM64 image
+        run: |
+          # Verify that all required components are in place
+          docker run --rm --platform linux/arm64 --entrypoint sh openconnect-mikrotik:test-arm64 -c "
+            openconnect --version && \
+            dnsmasq --version && \
+            iptables --version && \
+            test -f /connect.sh && \
+            test -x /connect.sh && \
+            echo 'ARM64 checks passed!'
           "
