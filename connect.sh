@@ -131,9 +131,6 @@ setup_dns() {
     
     log "VPN DNS servers: $VPN_DNS"
     
-    # Save first DNS for keep-alive (global variable)
-    VPN_DNS_PRIMARY=$(echo "$VPN_DNS" | awk '{print $1}')
-    
     # Stop old dnsmasq if running
     killall dnsmasq 2>/dev/null
     
