@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches-ignore:
+      - main
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -89,27 +91,27 @@ jobs:
             test -x /connect.sh && \
             echo 'ARM64 checks passed!'
           "
-  build-test-arm64-native:
-    name: Test Build ARM64 (Native)
-    runs-on: ubuntu-24.04-arm64
-    needs: lint
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  # build-test-arm64-native:
+  #   name: Test Build ARM64 (Native)
+  #   runs-on: ubuntu-24.04-arm64
+  #   needs: lint
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Build ARM64 test image
-        run: |
-          docker build -t openconnect-mikrotik:test-arm64 .
-          docker images openconnect-mikrotik:test-arm64
+  #     - name: Build ARM64 test image
+  #       run: |
+  #         docker build -t openconnect-mikrotik:test-arm64 .
+  #         docker images openconnect-mikrotik:test-arm64
 
-      - name: Test ARM64 image
-        run: |
-          # Verify that all required components are in place
-          docker run --rm --entrypoint sh openconnect-mikrotik:test-arm64 -c "
-            openconnect --version && \
-            dnsmasq --version && \
-            command -v iptables && \
-            test -f /connect.sh && \
-            test -x /connect.sh && \
-            echo 'ARM64 checks passed!'
-          "
+  #     - name: Test ARM64 image
+  #       run: |
+  #         # Verify that all required components are in place
+  #         docker run --rm --entrypoint sh openconnect-mikrotik:test-arm64 -c "
+  #           openconnect --version && \
+  #           dnsmasq --version && \
+  #           command -v iptables && \
+  #           test -f /connect.sh && \
+  #           test -x /connect.sh && \
+  #           echo 'ARM64 checks passed!'
+  #         "
