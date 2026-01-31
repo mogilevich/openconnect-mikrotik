@@ -131,6 +131,9 @@ setup_dns() {
     
     log "VPN DNS servers: $VPN_DNS"
     
+    # Save first DNS for keep-alive (global variable)
+    VPN_DNS_PRIMARY=$(echo "$VPN_DNS" | awk '{print $1}')
+    
     # Stop old dnsmasq if running
     killall dnsmasq 2>/dev/null
     
@@ -176,10 +179,41 @@ detect_tunnel_mode() {
     fi
 }
 
+keep_alive() {
+    log "Setting up keep-alive..."
+    
+    # Use VPN DNS from setup_dns() function
+    if [ -z "$VPN_DNS_PRIMARY" ]; then
+        log "Warning: VPN DNS not available for keep-alive"
+        return 1
+    fi
+    
+    KEEPALIVE_INTERVAL=${OC_KEEPALIVE_INTERVAL:-300}
+    
+    log "Keep-alive target: $VPN_DNS_PRIMARY (VPN DNS) every ${KEEPALIVE_INTERVAL}s"
+    
+    # Start background keep-alive process
+    (
+        while true; do
+            sleep $KEEPALIVE_INTERVAL
+            if [ -f /run/oc.pid ] && kill -0 "$(cat /run/oc.pid 2>/dev/null)" 2>/dev/null; then
+                ping -c 1 -W 5 "$VPN_DNS_PRIMARY" >/dev/null 2>&1
+            else
+                break
+            fi
+        done
+    ) &
+    
+    echo $! > /run/keepalive.pid
+    log "Keep-alive started (PID: $(cat /run/keepalive.pid))"
+}
+
 cleanup() { 
     log "Stopping..."
     killall dnsmasq 2>/dev/null
     kill "$(cat /run/oc.pid 2>/dev/null)" 2>/dev/null
+    kill "$(cat /run/keepalive.pid 2>/dev/null)" 2>/dev/null
+    rm -f /run/keepalive.pid
     # Clean up policy routing
     ip rule del table 100 2>/dev/null || true
     ip route flush table 100 2>/dev/null || true
@@ -216,6 +250,9 @@ while true; do
         # Setup DNS proxy
         setup_dns
         
+        # Setup keep-alive
+        keep_alive
+        
         # Show routing info
         log "=== Routing table ==="
         ip route | while read line; do log "  $line"; done
@@ -226,6 +263,8 @@ while true; do
         done
         log "Disconnected!"
         killall dnsmasq 2>/dev/null
+        kill "$(cat /run/keepalive.pid 2>/dev/null)" 2>/dev/null
+        rm -f /run/keepalive.pid
         # Clean up policy routing
         ip rule del table 100 2>/dev/null || true
         ip route flush table 100 2>/dev/null || true
