@@ -35,7 +35,7 @@ jobs:
     name: Test Build AMD64
     runs-on: ubuntu-latest
     needs: lint
-    if: github.event_name != 'workflow_dispatch' || inputs.test_amd64
+    if: github.event_name != 'workflow_dispatch' || inputs.test_amd64 != false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
     name: Test Build ARM64
     runs-on: ubuntu-latest
     needs: lint
-    if: (github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && inputs.test_arm64)
+    if: (github.ref == 'refs/heads/main' && github.event_name != 'workflow_dispatch') || (github.event_name == 'workflow_dispatch' && inputs.test_arm64 != false)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
