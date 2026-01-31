@@ -1,0 +1,186 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  IMAGE_NAME: openconnect-mikrotik
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            platform: linux/arm64
+            description: "ARM64 (hAP ax2, ax3, RB5009)"
+          - arch: arm
+            platform: linux/arm/v7
+            description: "ARM32 (hAP ac2, hEX, RB4011)"
+          - arch: amd64
+            platform: linux/amd64
+            description: "AMD64 (CHR, x86 routers)"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and export image
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --tag ${{ env.IMAGE_NAME }}:${{ matrix.arch }} \
+            --output type=docker,dest=${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar \
+            .
+          ls -lh ${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMAGE_NAME }}-${{ matrix.arch }}
+          path: ${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          for arch in arm64 arm amd64; do
+            mv artifacts/${{ env.IMAGE_NAME }}-${arch}/${{ env.IMAGE_NAME }}-${arch}.tar release/
+          done
+          ls -lh release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum *.tar > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## OpenConnect MikroTik Container ${{ steps.version.outputs.version }}
+
+            ### Downloads
+
+            | File | Architecture | Routers |
+            |------|--------------|---------|
+            | `openconnect-mikrotik-arm64.tar` | ARM64 | hAP ax2, ax3, RB5009 |
+            | `openconnect-mikrotik-arm.tar` | ARM32 | hAP ac2, hEX, RB4011 |
+            | `openconnect-mikrotik-amd64.tar` | AMD64 | CHR, x86 routers |
+
+            ### Installation
+
+            1. Download the `.tar` file for your router architecture
+            2. Upload to MikroTik via Files
+            3. Run:
+            ```
+            /container add file=openconnect-mikrotik-<arch>.tar \
+                interface=veth-vpn \
+                envlist=openconnect \
+                root-dir=openconnect \
+                dns=8.8.8.8 \
+                start-on-boot=yes \
+                logging=yes
+            ```
+
+            See [README](https://github.com/${{ github.repository }}/blob/main/README.md) for full setup instructions.
+          files: |
+            release/*.tar
+            release/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+
+  push-registry:
+    name: Push to Container Registry
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

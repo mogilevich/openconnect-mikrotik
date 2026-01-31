@@ -1,5 +1,8 @@
 # OpenConnect VPN Client for MikroTik
 
+[![CI](https://github.com/mogilevich/openconnect-mikrotik/actions/workflows/ci.yml/badge.svg)](https://github.com/mogilevich/openconnect-mikrotik/actions/workflows/ci.yml)
+[![Release](https://github.com/mogilevich/openconnect-mikrotik/actions/workflows/build-release.yml/badge.svg)](https://github.com/mogilevich/openconnect-mikrotik/actions/workflows/build-release.yml)
+
 Minimal Docker container for connecting MikroTik routers to OpenConnect (ocserv) VPN servers with routing and DNS support for clients.
 
 ## Features
@@ -97,13 +100,17 @@ The container automatically adds routes for `OC_CLIENT_NETWORKS` to ensure clien
 /system/device-mode/update container=yes
 ```
 
-### Step 2: Build the Image
+### Step 2: Get the Image
+
+**Option A: Download pre-built**
+
+Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/releases/latest) for your architecture.
+
+**Option B: Build locally**
 
 ```bash
-./build.sh arm64
+./build.sh arm64   # or arm, amd64, all
 ```
-
-Build takes 2-5 minutes (compiling openconnect from source).
 
 ### Step 3: Basic Setup
 
