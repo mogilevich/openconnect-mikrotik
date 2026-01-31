@@ -48,9 +48,10 @@ jobs:
           docker buildx build \
             --platform ${{ matrix.platform }} \
             --tag ${{ env.IMAGE_NAME }}:${{ matrix.arch }} \
-            --output type=docker,dest=${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar \
+            --load \
             --no-cache \
             .
+          docker save ${{ env.IMAGE_NAME }}:${{ matrix.arch }} > ${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar
           ls -lh ${{ env.IMAGE_NAME }}-${{ matrix.arch }}.tar
 
       - name: Upload artifact
