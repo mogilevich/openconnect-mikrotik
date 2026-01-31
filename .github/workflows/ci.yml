@@ -52,7 +52,7 @@ jobs:
           docker run --rm --entrypoint sh openconnect-mikrotik:test -c "
             openconnect --version && \
             dnsmasq --version && \
-            iptables --version && \
+            command -v iptables && \
             test -f /connect.sh && \
             test -x /connect.sh && \
             echo 'All checks passed!'
@@ -88,7 +88,7 @@ jobs:
           docker run --rm --platform linux/arm64 --entrypoint sh openconnect-mikrotik:test-arm64 -c "
             openconnect --version && \
             dnsmasq --version && \
-            iptables --version && \
+            command -v iptables && \
             test -f /connect.sh && \
             test -x /connect.sh && \
             echo 'ARM64 checks passed!'
