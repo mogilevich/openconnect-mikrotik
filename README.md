@@ -37,6 +37,7 @@ Minimal Docker container for connecting MikroTik routers to OpenConnect (ocserv)
 | `OC_MTU` | 1300 | Tunnel MTU |
 | `OC_EXTRA_ARGS` | - | Additional openconnect arguments |
 | `OC_RECONNECT_DELAY` | 5 | Reconnection delay in seconds |
+| `OC_KEEPALIVE_INTERVAL` | 60 | Keep-alive interval in seconds (DNS lookup to prevent idle disconnect) |
 
 ### OC_CLIENT_NETWORKS
 
