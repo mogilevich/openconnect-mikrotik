@@ -2,6 +2,8 @@ name: Build and Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -65,7 +67,6 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
     permissions:
       contents: write
 
@@ -98,7 +99,7 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
-            echo "version=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+            echo "version=main-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
@@ -136,7 +137,7 @@ jobs:
           files: |
             release/*.tar
             release/SHA256SUMS.txt
-          draft: false
+          draft: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           prerelease: false
 
   push-registry:
@@ -175,6 +176,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest
+            type=sha,prefix=main-
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
