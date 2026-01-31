@@ -182,22 +182,17 @@ detect_tunnel_mode() {
 keep_alive() {
     log "Setting up keep-alive..."
     
-    # Use VPN DNS from setup_dns() function
-    if [ -z "$VPN_DNS_PRIMARY" ]; then
-        log "Warning: VPN DNS not available for keep-alive"
-        return 1
-    fi
+    KEEPALIVE_INTERVAL=${OC_KEEPALIVE_INTERVAL:-60}
     
-    KEEPALIVE_INTERVAL=${OC_KEEPALIVE_INTERVAL:-300}
-    
-    log "Keep-alive target: $VPN_DNS_PRIMARY (VPN DNS) every ${KEEPALIVE_INTERVAL}s"
+    log "Keep-alive: DNS lookup every ${KEEPALIVE_INTERVAL}s"
     
     # Start background keep-alive process
     (
         while true; do
             sleep $KEEPALIVE_INTERVAL
             if [ -f /run/oc.pid ] && kill -0 "$(cat /run/oc.pid 2>/dev/null)" 2>/dev/null; then
-                ping -c 1 -W 5 "$VPN_DNS_PRIMARY" >/dev/null 2>&1
+                # DNS lookup through VPN DNS (reads /etc/resolv.conf automatically)
+                nslookup google.com >/dev/null 2>&1
             else
                 break
             fi
