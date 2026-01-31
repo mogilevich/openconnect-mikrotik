@@ -44,10 +44,11 @@ jobs:
       - name: Test image
         run: |
           # Verify that all required components are in place
-          docker run --rm openconnect-mikrotik:test sh -c "
+          docker run --rm --entrypoint sh openconnect-mikrotik:test -c "
             openconnect --version && \
             dnsmasq --version && \
             iptables --version && \
             test -f /connect.sh && \
+            test -x /connect.sh && \
             echo 'All checks passed!'
           "
