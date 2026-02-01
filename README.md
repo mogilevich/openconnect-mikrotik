@@ -103,11 +103,26 @@ The container automatically adds routes for `OC_CLIENT_NETWORKS` to ensure clien
 
 ### Step 2: Get the Image
 
-**Option A: Download pre-built**
+**Option A: Pull directly from GitHub Container Registry**
+
+MikroTik can download images directly from registries:
+
+```bash
+# Pull latest image from ghcr.io
+/container add remote-image=ghcr.io/mogilevich/openconnect-mikrotik:latest \
+    interface=veth-vpn \
+    envlist=openconnect \
+    root-dir=openconnect \
+    dns=8.8.8.8 \
+    start-on-boot=yes \
+    logging=yes
+```
+
+**Option B: Download pre-built**
 
 Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/releases/latest) for your architecture.
 
-**Option B: Build locally**
+**Option C: Build locally**
 
 ```bash
 ./build.sh arm64   # or arm, amd64, all
@@ -119,7 +134,7 @@ Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/rele
 # Upload mikrotik-setup.rsc, edit settings and run
 /import file-name=mikrotik-setup.rsc
 
-# Upload tar file and add container
+# If using Option B or C: Upload tar file and add container
 /container add file=openconnect-mikrotik-arm64.tar interface=veth-vpn envlist=openconnect root-dir=openconnect dns=8.8.8.8 start-on-boot=yes logging=yes
 
 # Start
@@ -190,11 +205,6 @@ Inside container, verify routes:
 /container/shell 0
 ip route | grep 192.168.16
 # Should show: 192.168.16.0/24 via 172.18.0.1 dev veth-vpn
-```
-
-### DNS not working in container
-```bash
-/container set 0 dns=8.8.8.8
 ```
 
 ### No internet for clients
