@@ -4,6 +4,26 @@
 
 log() { echo "[$(date '+%H:%M:%S')] $1"; }
 
+# Detect working iptables binary (nft backend may not work on older MikroTik kernels like hAP ac2)
+# Test nat table + MASQUERADE specifically, not just rule listing
+detect_iptables() {
+    if iptables -t nat -L -n >/dev/null 2>&1; then
+        echo "iptables"
+    elif iptables-legacy -t nat -L -n >/dev/null 2>&1; then
+        echo "iptables-legacy"
+    else
+        echo ""
+    fi
+}
+
+IPT=$(detect_iptables)
+if [ -n "$IPT" ]; then
+    log "Using iptables: $IPT"
+else
+    log "ERROR: Neither iptables nor iptables-legacy work on this device"
+    log "ERROR: NAT is not possible — client routing will not work"
+fi
+
 [ -z "$OC_SERVER" ] && { log "ERROR: Set OC_SERVER, OC_USER, OC_PASSWORD"; exit 1; }
 [ -z "$OC_USER" ] && { log "ERROR: Set OC_SERVER, OC_USER, OC_PASSWORD"; exit 1; }
 [ -z "$OC_PASSWORD" ] && { log "ERROR: Set OC_SERVER, OC_USER, OC_PASSWORD"; exit 1; }
@@ -91,27 +111,32 @@ setup_policy_routing() {
 
 setup_nat() {
     log "Setting up NAT and forwarding..."
-    
+
+    if [ -z "$IPT" ]; then
+        log "WARNING: iptables not available, skipping NAT setup"
+        return 1
+    fi
+
     # Detect LAN interface (veth)
     LAN_IF=$(ip -o link show | grep 'veth' | head -1 | awk -F': ' '{print $2}' | cut -d'@' -f1)
     [ -z "$LAN_IF" ] && LAN_IF="veth-vpn"
-    
+
     log "LAN interface: $LAN_IF"
     log "TUN interface: tun0"
-    
+
     # Clear old rules
-    iptables -F FORWARD 2>/dev/null
-    iptables -t nat -F POSTROUTING 2>/dev/null
-    
+    $IPT -F FORWARD 2>/dev/null
+    $IPT -t nat -F POSTROUTING 2>/dev/null
+
     # Allow all forwarding
-    iptables -P FORWARD ACCEPT
-    
+    $IPT -P FORWARD ACCEPT
+
     # NAT for outgoing traffic through tun0 (VPN networks)
-    iptables -t nat -A POSTROUTING -o tun0 -j MASQUERADE
-    
+    $IPT -t nat -A POSTROUTING -o tun0 -j MASQUERADE
+
     # NAT for outgoing traffic through veth (regular internet)
-    iptables -t nat -A POSTROUTING -o $LAN_IF -j MASQUERADE
-    
+    $IPT -t nat -A POSTROUTING -o $LAN_IF -j MASQUERADE
+
     log "NAT configured for tun0 and $LAN_IF"
 }
 
