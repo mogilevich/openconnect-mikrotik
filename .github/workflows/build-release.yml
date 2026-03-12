@@ -180,7 +180,7 @@ jobs:
           # Create and push multi-arch manifest for each tag
           TAGS="${{ steps.meta.outputs.tags }}"
           for tag in $TAGS; do
-            docker manifest create ${tag} \
+            docker manifest create --amend ${tag} \
               ${REPO}:amd64 \
               ${REPO}:arm64 \
               ${REPO}:arm
