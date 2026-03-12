@@ -44,9 +44,13 @@ RUN apk add --no-cache --no-scripts \
     libxml2 \
     lz4-libs \
     ca-certificates-bundle \
-    iptables \
+    iptables-legacy \
     dnsmasq \
     vpnc \
+    #
+    # === Alias iptables -> legacy (nft backend not supported on some MikroTik kernels) ===
+    #
+    && ln -s /sbin/iptables-legacy /sbin/iptables \
     #
     # === Remove unnecessary files ===
     #
