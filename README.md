@@ -7,14 +7,15 @@ Minimal Docker container for connecting MikroTik routers to OpenConnect (ocserv)
 
 ## Features
 
-- ✅ ARM64 support (MikroTik hAP ax2, ax3, etc.)
-- ✅ ARM32 support (MikroTik hAP ac2, hEX, etc.)
+- ✅ ARM64 support (MikroTik hAP ax2, ax3, RB5009, etc.)
+- ✅ ARM32 support (MikroTik hAP ac2, hEX, RB4011, etc.)
+- ✅ AMD64 support (CHR, x86 routers)
 - ✅ **Split-tunnel mode** — only VPN networks through tunnel
 - ✅ **Full-tunnel mode** — all traffic through VPN
 - ✅ Automatic reconnection on connection loss
-- ✅ NAT and routing for clients
+- ✅ NAT and routing for clients (iptables-legacy for broad kernel compatibility)
 - ✅ DNS proxy — clients use VPN DNS servers
-- ✅ **Image size ~27MB** (custom build without libproxy)
+- ✅ **Image size ~21MB** (custom build without libproxy)
 
 ## Environment Variables
 
@@ -101,14 +102,23 @@ The container automatically adds routes for `OC_CLIENT_NETWORKS` to ensure clien
 /system/device-mode/update container=yes
 ```
 
-### Step 2: Get the Image
+### Step 2: Configure
 
-**Option A: Pull directly from GitHub Container Registry**
-
-MikroTik can download images directly from registries:
+Edit VPN settings at the top of `mikrotik-setup.rsc` (server, user, password), upload to the router, then run:
 
 ```bash
-# Pull latest image from ghcr.io
+/import file-name=mikrotik-setup.rsc
+```
+
+This creates the veth interface, bridge, network, environment variables, and firewall rules.
+
+### Step 3: Add Container
+
+Choose one of the options:
+
+**Option A: Pull from GitHub Container Registry**
+
+```bash
 /container add remote-image=ghcr.io/mogilevich/openconnect-mikrotik:latest \
     interface=veth-vpn \
     envlist=openconnect \
@@ -118,9 +128,21 @@ MikroTik can download images directly from registries:
     logging=yes
 ```
 
-**Option B: Download pre-built**
+**Option B: Download pre-built .tar**
 
-Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/releases/latest) for your architecture.
+1. Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/releases/latest) for your architecture
+2. Upload the `.tar` file to the router (via Files, FTP, or SCP)
+3. Add container:
+
+```bash
+/container add file=openconnect-mikrotik-arm64.tar \
+    interface=veth-vpn \
+    envlist=openconnect \
+    root-dir=openconnect \
+    dns=8.8.8.8 \
+    start-on-boot=yes \
+    logging=yes
+```
 
 **Option C: Build locally**
 
@@ -128,30 +150,27 @@ Download from [Releases](https://github.com/mogilevich/openconnect-mikrotik/rele
 ./build.sh arm64   # or arm, amd64, all
 ```
 
-### Step 3: Basic Setup
+Then upload the `.tar` and add as in Option B.
+
+### Step 4: Start
 
 ```bash
-# Upload mikrotik-setup.rsc, edit settings and run
-/import file-name=mikrotik-setup.rsc
-
-# If using Option B or C: Upload tar file and add container
-/container add file=openconnect-mikrotik-arm64.tar interface=veth-vpn envlist=openconnect root-dir=openconnect dns=8.8.8.8 start-on-boot=yes logging=yes
-
-# Start
 /container start 0
 ```
 
-### Step 4: VPN Network for Clients (Optional)
+### Step 5: VPN Network for Clients (Optional)
+
+Edit settings at the top of `mikrotik-vpn-network.rsc` (VLAN ID, WiFi SSID/password, subnet), upload to the router, then run:
 
 ```bash
-# Upload mikrotik-vpn-network.rsc, edit settings and run
 /import file-name=mikrotik-vpn-network.rsc
 ```
 
 This creates:
-- VLAN 16 on bridge-trunk
-- WiFi network with specified SSID
-- DHCP (192.168.16.0/24) with DNS through container
+
+- VLAN on bridge-trunk
+- WiFi network with specified SSID and password
+- DHCP with DNS through container
 - Policy-based routing through VPN
 
 ## Architecture
@@ -241,11 +260,12 @@ Ensure DHCP provides DNS = container IP:
 
 ## Size Optimization
 
-Image optimized to **27MB** (was 37MB with packaged openconnect):
+Image optimized to **~21MB** (was 37MB with packaged openconnect):
 
 - Multi-stage build of openconnect from source
 - Flags: `--without-libproxy --without-libpskc --without-stoken --without-gssapi --disable-nls`
-- Removed: GLib, curl, duktape, pcre2, p11-kit CLI, scanelf, etc.
+- iptables-legacy backend instead of nft (smaller, better MikroTik kernel compatibility)
+- Removed: nft backend, unused xtables extensions, GLib, curl, duktape, pcre2, p11-kit CLI, scanelf, etc.
 
 ## License
 
