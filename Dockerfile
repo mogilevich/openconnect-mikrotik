@@ -53,6 +53,12 @@ RUN apk add --no-cache --no-scripts \
     #
     && ln -sf /sbin/iptables-legacy /sbin/iptables \
     #
+    # === Remove nft backend and unused xtables extensions (~7.5MB) ===
+    #
+    && rm -f /sbin/xtables-nft-multi /sbin/iptables-nft* /sbin/ip6tables-nft* \
+    && rm -f /usr/lib/libnftnl* \
+    && find /usr/lib/xtables/ -type f ! -name 'libxt_NAT.so' ! -name 'libxt_standard.so' -delete \
+    #
     # === Remove unnecessary files ===
     #
     && rm -f /usr/sbin/vpnc /usr/sbin/vpnc-disconnect \
